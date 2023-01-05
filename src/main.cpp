@@ -1,18 +1,17 @@
 #include <Arduino.h>
 #include <Arduino_FreeRTOS.h>
 #include "SoftwareSerial.h"
-#include "MyDFRobotDFPlayerMini.hpp"
+#include <queue.h>
+ 
 
-#include <SoftwareSerial.h>
- 
 SoftwareSerial mp3(11, 10);
- 
-static uint8_t cmdbuf[8] = {0};
- 
+QueueHandle_t xQueue;
+
+
 void command(int8_t cmd, int16_t dat)
 {
   vTaskDelay( 20 / portTICK_PERIOD_MS );
- 
+  uint8_t cmdbuf[8] = {0};
   cmdbuf[0] = 0x7e; // bajt startu
   cmdbuf[1] = 0xFF; // wersja
   cmdbuf[2] = 0x06; // liczba bajtow polecenia
@@ -29,139 +28,84 @@ void command(int8_t cmd, int16_t dat)
 }
  
 
-void volumeProxy(uint8_t volume){
-
+void play(uint8_t mp3name, int seconds, uint8_t dirName)
+{
+  uint16_t numberOfDirAndMp3 = dirName<<8;
+  Serial.println("obliczylem numer folderu");
+  Serial.println(numberOfDirAndMp3);
+  numberOfDirAndMp3 += mp3name;
+  command(0x0F, numberOfDirAndMp3);
+  vTaskDelay(seconds*1000 / portTICK_PERIOD_MS); 
+  command(0x0e, 0x00);
 }
 
-void TaskBlink1( void *pvParameters );
-
-void TaskBlink2( void *pvParameters );
-
-void Taskprint( void *pvParameters );
+void TaskDetect( void *pvParameters );
+void TaskPlay( void *pvParameters );
 
 void setup() {
+  xQueue = xQueueCreate( 10, sizeof( uint8_t ) );
+
+  /* We want this queue to be viewable in a RTOS kernel aware debugger,
+  so register it. */
+  vQueueAddToRegistry( xQueue, "NumberOfSong" );
   Serial.begin(9600);
     
   xTaskCreate(
-
-    TaskBlink1
-
-    ,  "task1"   
-
+    TaskDetect
+    ,  "taskDetect"   
     ,  128  
-
     ,  NULL
-
     ,  1  
-
     ,  NULL );
 
   xTaskCreate(
-
-    TaskBlink2
-
-    ,  "task2"
-
+    TaskPlay
+    ,  "taskPlay"
     ,  128  
-
     ,  NULL
-
     ,  1  
-
-    ,  NULL );
-
-    xTaskCreate(
-
-    Taskprint
-
-    ,  "task3"
-
-    ,  128  
-
-    ,  NULL
-
-    ,  1  
-
-    ,  NULL );
+    ,  NULL);
 vTaskStartScheduler();
-
 }
 
 void loop()
-
 {
-
 }
 
-void TaskBlink1(void *pvParameters)  {
+
+void TaskDetect(void *pvParameters)  
+{
+  uint8_t valToSend = 2;
+  while(1)
+  {
+
+    Serial.println("Send Task");
   
+    if(valToSend==1){
+      valToSend=2;
+    }else{
+      valToSend=1;
+    }
+    xQueueSend( /* The handle of the queue. */
+               xQueue,
+               ( void * ) &valToSend,
+               ( TickType_t ) 0 );
+    vTaskDelay( 23000 / portTICK_PERIOD_MS ); 
+  }
+}
+
+void TaskPlay(void *pvParameters)  {
   mp3.begin(9600);
   vTaskDelay( 500 / portTICK_PERIOD_MS );  // Czekamu 200ms na inicjalizacje
-  vTaskDelay( 200 / portTICK_PERIOD_MS );  // Czekamu 200ms na inicjalizacje
- 
-  command(0x0F, 0x0101);
-  vTaskDelay( 10000 / portTICK_PERIOD_MS ); 
-  command(0x0e, 0x00);
-  command(0x0F, 0x0102);
-  vTaskDelay( 10000 / portTICK_PERIOD_MS ); 
-  command(0x0e, 0x00);
-
-  pinMode(8, OUTPUT);
-
   while(1)
-
   {
-
-    Serial.println("Task1");
-
     digitalWrite(8, HIGH);   
-
-    vTaskDelay( 200 / portTICK_PERIOD_MS ); 
-
-    digitalWrite(8, LOW);    
-
-    vTaskDelay( 200 / portTICK_PERIOD_MS ); 
-
+    uint8_t received_number_of_song;
+    if(xQueueReceive(xQueue, (void*)&received_number_of_song, 500 / portTICK_PERIOD_MS)){
+        Serial.println("I will open music");
+        Serial.println(received_number_of_song);
+        play(received_number_of_song, 10, (uint8_t)1);
+    }
+    Serial.println("Waiting for music");
   }
-
-}
-
-void TaskBlink2(void *pvParameters)  
-
-{
-  const int ledPin = 13;
-  pinMode(ledPin, OUTPUT);
-
-  while(1)
-
-  {
-
-    Serial.println("Task2");
-
-    digitalWrite(ledPin, HIGH);   
-
-    vTaskDelay( 300 / portTICK_PERIOD_MS ); 
-
-    digitalWrite(ledPin, LOW);   
-
-    vTaskDelay( 300 / portTICK_PERIOD_MS ); 
-
-  }
-
-}
-
-void Taskprint(void *pvParameters)  {
-
-  int counter = 0;
-
-  while(1)
-
-  {
-
-counter++;
-
-  Serial.println(counter); 
-
-  vTaskDelay(500 / portTICK_PERIOD_MS);    }
-
 }
