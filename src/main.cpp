@@ -28,7 +28,7 @@ void command(int8_t cmd, int16_t dat)
 }
  
 
-void play(uint8_t mp3name, int seconds, uint8_t dirName)
+inline void play(uint8_t mp3name, int seconds, uint8_t dirName)
 {
   uint16_t numberOfDirAndMp3 = dirName<<8;
   Serial.println("obliczylem numer folderu");
@@ -39,24 +39,23 @@ void play(uint8_t mp3name, int seconds, uint8_t dirName)
   command(0x0e, 0x00);
 }
 
-void TaskDetect( void *pvParameters );
 void TaskPlay( void *pvParameters );
+void blink(){
+    Serial.println("Sending to play");
+    uint8_t val = 1;
+    xQueueSendToBackFromISR(xQueue,&val,pdFALSE);
+}
+int interruptPin = 2;
 
 void setup() {
+
   xQueue = xQueueCreate( 10, sizeof( uint8_t ) );
 
   /* We want this queue to be viewable in a RTOS kernel aware debugger,
   so register it. */
   vQueueAddToRegistry( xQueue, "NumberOfSong" );
   Serial.begin(9600);
-    
-  xTaskCreate(
-    TaskDetect
-    ,  "taskDetect"   
-    ,  128  
-    ,  NULL
-    ,  1  
-    ,  NULL );
+ 
 
   xTaskCreate(
     TaskPlay
@@ -65,43 +64,24 @@ void setup() {
     ,  NULL
     ,  1  
     ,  NULL);
-vTaskStartScheduler();
+
+  pinMode(interruptPin, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(interruptPin), blink, FALLING);
+  vTaskStartScheduler();
 }
 
 void loop()
-{
+{ 
 }
 
-
-void TaskDetect(void *pvParameters)  
-{
-  uint8_t valToSend = 2;
-  while(1)
-  {
-
-    Serial.println("Send Task");
-  
-    if(valToSend==1){
-      valToSend=2;
-    }else{
-      valToSend=1;
-    }
-    xQueueSend( /* The handle of the queue. */
-               xQueue,
-               ( void * ) &valToSend,
-               ( TickType_t ) 0 );
-    vTaskDelay( 23000 / portTICK_PERIOD_MS ); 
-  }
-}
 
 void TaskPlay(void *pvParameters)  {
   mp3.begin(9600);
-  vTaskDelay( 500 / portTICK_PERIOD_MS );  // Czekamu 200ms na inicjalizacje
+  vTaskDelay( 500 / portTICK_PERIOD_MS ); 
   while(1)
-  {
-    digitalWrite(8, HIGH);   
+  { 
     uint8_t received_number_of_song;
-    if(xQueueReceive(xQueue, (void*)&received_number_of_song, 500 / portTICK_PERIOD_MS)){
+    if(xQueueReceive(xQueue, (void*)&received_number_of_song, 2000 / portTICK_PERIOD_MS)){
         Serial.println("I will open music");
         Serial.println(received_number_of_song);
         play(received_number_of_song, 10, (uint8_t)1);
