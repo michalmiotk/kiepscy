@@ -28,3 +28,13 @@ void play(uint8_t mp3name, int seconds, SoftwareSerial& mp3, uint8_t dirName=1)
   vTaskDelay(seconds*1000 / portTICK_PERIOD_MS); 
   command(0x0e, 0x00, mp3);
 }
+
+void setupPlayer(SoftwareSerial& softwareSerial)
+{
+    vTaskDelay( 500 / portTICK_PERIOD_MS );
+    command(0x0C, 0,  softwareSerial); // reset  
+    vTaskDelay( 500 / portTICK_PERIOD_MS ); // Wait for initialization
+    command(0x09, 0x0002, softwareSerial); // SD card as source
+    vTaskDelay( 200 / portTICK_PERIOD_MS ); //  Wait for initialization
+    command(0x06, 30, softwareSerial); // Set volume to 30
+}

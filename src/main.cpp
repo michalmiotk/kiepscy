@@ -33,5 +33,6 @@ void loop()
 void irGateInterrupt()
 {
     Serial.println("Sending to play");
-    xSemaphoreGive(semaphore);
+    BaseType_t pxHigherPriorityTaskWoken;
+    xSemaphoreGiveFromISR(semaphore, &pxHigherPriorityTaskWoken);
 }
